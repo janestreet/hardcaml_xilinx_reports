@@ -92,7 +92,6 @@ module Command_flags = struct
       ~doc:"<BBOX> blackbox mode"
   ;;
 
-
   (* Run placement.  *)
   let place =
     flag
@@ -219,20 +218,20 @@ let default_primitive_groups =
 ;;
 
 let hierarchical_projects
-      ~database
-      ~primitive_groups
-      ~output_path
-      ~part_name
-      ~reports
-      ~blackbox
-      ~opt_design
-      ~clocks
-      ~disable_hierarchy_in_report
-      ~disable_retiming
-      ~place
-      ~route
-      ~checkpoint
-      circuits
+  ~database
+  ~primitive_groups
+  ~output_path
+  ~part_name
+  ~reports
+  ~blackbox
+  ~opt_design
+  ~clocks
+  ~disable_hierarchy_in_report
+  ~disable_retiming
+  ~place
+  ~route
+  ~checkpoint
+  circuits
   =
   let create_project circuit =
     let input_names =
@@ -271,14 +270,14 @@ let hierarchical_projects
 ;;
 
 let hierarchical_run_and_print
-      ?(sort_by_name = false)
-      ?path_to_vivado
-      ~top_level_name
-      ~circuits
-      ~max_concurrent_jobs
-      ~verbose
-      ~additional_output_log_files
-      projects
+  ?(sort_by_name = false)
+  ?path_to_vivado
+  ~top_level_name
+  ~circuits
+  ~max_concurrent_jobs
+  ~verbose
+  ~additional_output_log_files
+  projects
   =
   let%map runs =
     Deferred.List.map
@@ -314,10 +313,10 @@ let hierarchical_run_and_print
 ;;
 
 let run_circuit
-      ?(primitive_groups = default_primitive_groups)
-      ?sort_by_name
-      ~(flags : Command_flags.t)
-      circuit
+  ?(primitive_groups = default_primitive_groups)
+  ?sort_by_name
+  ~(flags : Command_flags.t)
+  circuit
   =
   let { Command_flags.output_path
       ; part_name
@@ -389,7 +388,6 @@ let command_circuit ?primitive_groups ?sort_by_name circuit =
       fun () -> run_circuit ?primitive_groups ?sort_by_name ~flags circuit]
     ~behave_nicely_in_pipeline:false
 ;;
-
 
 module With_interface (I : Interface.S) (O : Interface.S) = struct
   module Circuit = Circuit.With_interface (I) (O)
@@ -464,7 +462,6 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
        fun () -> run ?sort_by_name ?primitive_groups ~name ~flags create)
       ~behave_nicely_in_pipeline:false
   ;;
-
 
   let command_run ?primitive_groups ?sort_by_name ~name create =
     Command_unix.run

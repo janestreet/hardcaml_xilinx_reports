@@ -6,7 +6,6 @@
     bufg location constraint ie [BUFGCTRL_X0Y2].
 *)
 
-
 open! Import
 
 type t

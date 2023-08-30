@@ -122,10 +122,10 @@ let mk_name ~level ~module_name ~instance_name =
 ;;
 
 let print_utilization_table
-      ~file
-      ~top_level_name
-      ~circuits
-      (reports : (string * t option) list)
+  ~file
+  ~top_level_name
+  ~circuits
+  (reports : (string * t option) list)
   =
   let header = List.find reports ~f:(fun (_, report) -> Option.is_some report) in
   let header_row =
@@ -138,7 +138,7 @@ let print_utilization_table
         List.map groups ~f:(fun group ->
           group.name
           :: List.map group.subgroups ~f:(fun subgroup ->
-            subgroup_name_of_subgroup subgroup.name))
+               subgroup_name_of_subgroup subgroup.name))
       in
       (* Leading dash will make the column left-align. *)
       "-NAME" :: List.concat header
@@ -165,10 +165,10 @@ let print_utilization_table
 ;;
 
 let print_timing_table
-      ~file
-      ~top_level_name
-      ~circuits
-      (reports : (string * t option) list)
+  ~file
+  ~top_level_name
+  ~circuits
+  (reports : (string * t option) list)
   =
   (* All clocks found in the design. *)
   let all_clocks =

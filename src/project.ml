@@ -65,9 +65,9 @@ let query_utilization ~(config : Config.t) ~tcl_file ~primitive_groups =
       primitive_group_name
       primitive_group_name;
     let write_subgroups
-          (type t)
-          (module X : Primitive_group.Subgroup with type t = t)
-          (primitive_subgroups : t list)
+      (type t)
+      (module X : Primitive_group.Subgroup with type t = t)
+      (primitive_subgroups : t list)
       =
       List.iter primitive_subgroups ~f:(fun primitive_subgroup ->
         let primitive_subgroup_name = X.primitive_subgroup primitive_subgroup in
@@ -131,18 +131,18 @@ let query_timing ~clocks ~tcl_file =
 ;;
 
 let write_run_script
-      ~(config : Config.t)
-      ~top_name
-      ~output_path
-      ~part_name
-      ~verilog_file
-      ~xdc_file
-      ~tcl_file
-      ~clocks
-      ~report_file
-      ~place
-      ~route
-      ~checkpoint
+  ~(config : Config.t)
+  ~top_name
+  ~output_path
+  ~part_name
+  ~verilog_file
+  ~xdc_file
+  ~tcl_file
+  ~clocks
+  ~report_file
+  ~place
+  ~route
+  ~checkpoint
   =
   let report predicate extension =
     if predicate
@@ -241,15 +241,15 @@ let mkdir_if_needed path =
 ;;
 
 let create
-      ?database
-      ?(config = Config.default)
-      ?(place = false)
-      ?(route = false)
-      ?(checkpoint = false)
-      ~clocks
-      ~part_name
-      ~output_path
-      circuit
+  ?database
+  ?(config = Config.default)
+  ?(place = false)
+  ?(route = false)
+  ?(checkpoint = false)
+  ~clocks
+  ~part_name
+  ~output_path
+  circuit
   =
   mkdir_if_needed output_path;
   let top_name = Circuit.name circuit in
