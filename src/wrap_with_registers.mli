@@ -6,17 +6,13 @@
     synthesis flow. *)
 open Hardcaml
 
-module type Sequential_interface = sig
-  module Data : Hardcaml.Interface.S
+module Make_sequential (I : sig
   include Hardcaml.Interface.S
 
-  val clock : 'a t -> 'a
-  val clear : 'a t -> 'a
-  val data : 'a t -> 'a Data.t
-  val create : clock:'a -> clear:'a -> data:'a Data.t -> 'a t
-end
-
-module Make_sequential (I : Sequential_interface) (O : Interface.S) : sig
+  val get_clock : 'a t -> 'a
+  val set_clock : 'a t -> clock:'a -> 'a t
+end)
+(O : Interface.S) : sig
   val create
     :  (Scope.t -> Interface.Create_fn(I)(O).t)
     -> Scope.t

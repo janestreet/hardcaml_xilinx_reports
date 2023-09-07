@@ -2,27 +2,25 @@ open! Core
 open Hardcaml
 open Signal
 
-module type Sequential_interface = sig
-  module Data : Hardcaml.Interface.S
+module Make_sequential (I : sig
   include Hardcaml.Interface.S
 
-  val clock : 'a t -> 'a
-  val clear : 'a t -> 'a
-  val data : 'a t -> 'a Data.t
-  val create : clock:'a -> clear:'a -> data:'a Data.t -> 'a t
-end
-
-module Make_sequential (I : Sequential_interface) (O : Interface.S) = struct
+  val get_clock : 'a t -> 'a
+  val set_clock : 'a t -> clock:'a -> 'a t
+end)
+(O : Interface.S) =
+struct
   let create create (scope : Scope.t) (i : _ I.t) =
-    let spec = Reg_spec.create ~clock:(I.clock i) ~clear:(I.clear i) () in
+    let ( -- ) = Scope.naming scope in
+    let clock = I.get_clock i in
+    let spec = Reg_spec.create ~clock () in
     let inputs =
-      I.create
-        ~clock:(I.clock i)
-        ~clear:(I.clear i)
-        ~data:(I.Data.map (I.data i) ~f:(reg spec ~enable:vdd))
+      I.set_clock
+        ~clock
+        (I.map2 I.port_names i ~f:(fun name s -> reg spec s -- (name ^ "_reg")))
     in
     let outputs = create scope inputs in
-    O.map outputs ~f:(reg spec ~enable:vdd)
+    O.map2 O.port_names outputs ~f:(fun name s -> reg spec s -- (name ^ "_reg"))
   ;;
 
   let hier ~name create_fn scope (i : _ I.t) =
