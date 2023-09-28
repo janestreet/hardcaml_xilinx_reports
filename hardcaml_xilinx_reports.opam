@@ -16,11 +16,11 @@ depends: [
   "core"
   "core_unix"
   "hardcaml"
-  "ppx_deriving_hardcaml"
+  "ppx_hardcaml"
   "ppx_jane"
   "stdio"
   "textutils"
-  "dune"                  {>= "2.0.0"}
+  "dune"         {>= "2.0.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Hardcaml Xilinx Reports"
