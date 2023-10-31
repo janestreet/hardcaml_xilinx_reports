@@ -43,7 +43,7 @@ module Make (I : Interface.S) (O : Interface.S) = struct
       ; clear : 'a
       ; i : 'a I.t [@rtlprefix "i_"]
       }
-    [@@deriving sexp_of, hardcaml]
+    [@@deriving hardcaml]
   end
 
   type combinational_or_sequential =

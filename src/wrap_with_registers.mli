@@ -37,7 +37,7 @@ module Make (I : Interface.S) (O : Interface.S) : sig
       ; clear : 'a
       ; i : 'a I.t
       }
-    [@@deriving sexp_of, hardcaml]
+    [@@deriving hardcaml]
   end
 
   type combinational_or_sequential =

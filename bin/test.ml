@@ -12,11 +12,11 @@ module Design = struct
       ; a : 'a [@bits 8]
       ; b : 'a [@bits 8]
       }
-    [@@deriving sexp_of, hardcaml]
+    [@@deriving hardcaml]
   end
 
   module O = struct
-    type 'a t = { o : 'a [@bits 8] } [@@deriving sexp_of, hardcaml]
+    type 'a t = { o : 'a [@bits 8] } [@@deriving hardcaml]
   end
 
   let _create (i : _ I.t) =
@@ -53,7 +53,7 @@ module Hierarchical_design = struct
       ; b_real : 'a [@bits 8]
       ; b_imag : 'a [@bits 8]
       }
-    [@@deriving sexp_of, hardcaml]
+    [@@deriving hardcaml]
   end
 
   module O = struct
@@ -61,7 +61,7 @@ module Hierarchical_design = struct
       { c_real : 'a [@bits 8]
       ; c_imag : 'a [@bits 8]
       }
-    [@@deriving sexp_of, hardcaml]
+    [@@deriving hardcaml]
   end
 
   let create scope (i : _ I.t) =
