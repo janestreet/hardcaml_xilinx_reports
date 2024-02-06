@@ -1,2 +1,6 @@
-(executables (names test) (libraries hardcaml hardcaml_xilinx_reports)
- (preprocess (pps ppx_jane ppx_hardcaml)))
+(executables
+ (modes byte exe)
+ (names test)
+ (libraries hardcaml hardcaml_xilinx_reports)
+ (preprocess
+  (pps ppx_jane ppx_hardcaml)))
