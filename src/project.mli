@@ -8,17 +8,17 @@ module Config : sig
     { vivado_utilization_report : bool (** Generate a Vivado utilization report file *)
     ; vivado_timing_report : bool (** Generate a Vivado timing report file *)
     ; primitive_groups : Primitive_group.t list
-        (** Configure design utilization elements that should be queries and reported. *)
+    (** Configure design utilization elements that should be queries and reported. *)
     ; blackbox : Rtl.Blackbox.t (** Blackbox mode. *)
     ; opt_design : bool option
-        (** Enable or disable the [opt_design] pass. If [None] then enabled automatically
+    (** Enable or disable the [opt_design] pass. If [None] then enabled automatically
         depending on the blackbox mode. *)
     ; report_hierarchy : bool
-        (** When extracting cells from the design to report utilization, search complete
+    (** When extracting cells from the design to report utilization, search complete
         hierarchy if true, or just the top-level (current) instance when false. Must be
         set to true to find XPM (Xilinx parameterized macro) instances. *)
     ; retiming : bool
-        (** Enable retiming during synthesis. Improves timing but might affect resource usage.
+    (** Enable retiming during synthesis. Improves timing but might affect resource usage.
         Enabled by default. *)
     }
   [@@deriving sexp_of]

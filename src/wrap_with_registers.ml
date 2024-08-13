@@ -2,13 +2,14 @@ open! Core
 open Hardcaml
 open Signal
 
-module Make_sequential (I : sig
-  include Hardcaml.Interface.S
+module Make_sequential
+    (I : sig
+       include Hardcaml.Interface.S
 
-  val get_clock : 'a t -> 'a
-  val set_clock : 'a t -> clock:'a -> 'a t
-end)
-(O : Interface.S) =
+       val get_clock : 'a t -> 'a
+       val set_clock : 'a t -> clock:'a -> 'a t
+     end)
+    (O : Interface.S) =
 struct
   let create create (scope : Scope.t) (i : _ I.t) =
     let ( -- ) = Scope.naming scope in

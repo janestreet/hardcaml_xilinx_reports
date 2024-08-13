@@ -35,7 +35,7 @@ module Hierarchical_design = struct
 
     let create _scope (i : _ I.t) =
       let spec = Reg_spec.create () ~clock:i.clock ~clear:i.clear in
-      { O.o = reg spec ~enable:vdd (uresize (i.a *: i.b) 8) }
+      { O.o = reg spec ~enable:vdd (uresize (i.a *: i.b) ~width:8) }
     ;;
 
     let hier scope (i : _ I.t) =

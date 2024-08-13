@@ -138,7 +138,7 @@ let print_utilization_table
         List.map groups ~f:(fun group ->
           group.name
           :: List.map group.subgroups ~f:(fun subgroup ->
-               subgroup_name_of_subgroup subgroup.name))
+            subgroup_name_of_subgroup subgroup.name))
       in
       (* Leading dash will make the column left-align. *)
       "-NAME" :: List.concat header

@@ -2,6 +2,6 @@
  (name hardcaml_xilinx_reports)
  (public_name hardcaml_xilinx_reports)
  (libraries textutils.ascii_table async base core_unix.command_unix core
-   hardcaml stdio)
+   core_unix hardcaml stdio unix)
  (preprocess
   (pps ppx_hardcaml ppx_jane)))
