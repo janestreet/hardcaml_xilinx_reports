@@ -169,24 +169,24 @@ module Command_flags = struct
   let flags =
     let open Command.Let_syntax in
     let%map_open () = return ()
-    and output_path = output_path
-    and part_name = part_name
-    and reports = reports
-    and clocks = clocks
-    and blackbox = blackbox
-    and run = run
-    and place = place
-    and route = route
-    and checkpoint = checkpoint
-    and opt_design = opt_design
-    and flatten_design = flatten_design
-    and hierarchy = hierarchy
-    and disable_hierarchy_in_report = disable_hierarchy_in_report
-    and disable_retiming = disable_retiming
-    and verbose = verbose
-    and path_to_vivado = path_to_vivado
-    and max_concurrent_jobs = max_concurrent_jobs
-    and additional_output_log_files = additional_output_log_files in
+    and output_path
+    and part_name
+    and reports
+    and clocks
+    and blackbox
+    and run
+    and place
+    and route
+    and checkpoint
+    and opt_design
+    and flatten_design
+    and hierarchy
+    and disable_hierarchy_in_report
+    and disable_retiming
+    and verbose
+    and path_to_vivado
+    and max_concurrent_jobs
+    and additional_output_log_files in
     { output_path
     ; part_name
     ; reports
