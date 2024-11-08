@@ -19,7 +19,7 @@ See the example in the `bin` directory.  Roughly speaking it works as follows
 ```
 module Synth = Hardcaml_xilinx_reports
 module Command = Synth.Command.With_interface (Design.I) (Design.O)
-let () = Command_unix.run ~name:"foo" Design.create
+let () = Command_unix.run (Command.command_basic ~name:"foo" Design.create)
 ```
 
 Note that a command line app with a set of command line flags is generated. An
