@@ -8,8 +8,7 @@
     appropriate property. The number of such cells left is the corresponding total
     utilization count.
 
-    The most important groups are Clb, Register and Blockram.
-*)
+    The most important groups are Clb, Register and Blockram. *)
 
 open! Import
 
@@ -20,7 +19,8 @@ module type Subgroup = sig
   val ignore_macro_primitives : t -> bool
 end
 
-(** {4 Primtive subgroups} **)
+(** {4 Primtive subgroups}
+    **)
 module Advanced : sig
   type t =
     | Mac
@@ -124,7 +124,8 @@ module Register : sig
   val ignore_macro_primitives : t -> bool
 end
 
-(** {4 Primitive groups} **)
+(** {4 Primitive groups}
+    **)
 type t =
   | Advanced of Advanced.t list
   | Arithmetic of Arithmetic.t list

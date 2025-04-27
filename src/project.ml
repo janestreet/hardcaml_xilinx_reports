@@ -5,7 +5,7 @@ module Config = struct
     { vivado_utilization_report : bool
     ; vivado_timing_report : bool
     ; primitive_groups : Primitive_group.t list
-    ; blackbox : Rtl.Blackbox.t
+    ; full_design_hierarchy : bool
     ; opt_design : bool option
     ; report_hierarchy : bool
     ; retiming : bool
@@ -16,7 +16,7 @@ module Config = struct
     { vivado_utilization_report = false
     ; vivado_timing_report = false
     ; primitive_groups = [ Clb []; Register [] ]
-    ; blackbox = Instantiations
+    ; full_design_hierarchy = false
     ; opt_design = None
     ; report_hierarchy = true
     ; retiming = true
@@ -143,6 +143,7 @@ let write_run_script
   ~place
   ~route
   ~checkpoint
+  ~preserve_hierarchy
   =
   let report predicate extension =
     if predicate
@@ -173,7 +174,14 @@ let write_run_script
     Out_channel.fprintf
       tcl_file
       "set_param synth.elaboration.rodinMoreOptions \"rt::set_parameter synRetiming true\"\n";
-  Out_channel.fprintf tcl_file "synth_design -top %s -mode out_of_context\n" top_name;
+  let maybe_preserve_hierarchy =
+    if preserve_hierarchy then "-flatten_hierarchy none" else ""
+  in
+  Out_channel.fprintf
+    tcl_file
+    "synth_design -top %s -mode out_of_context %s\n"
+    top_name
+    maybe_preserve_hierarchy;
   let maybe_write_checkpoint stage =
     if checkpoint
     then (
@@ -181,10 +189,9 @@ let write_run_script
       Out_channel.fprintf tcl_file "write_checkpoint -force \"%s\"\n" file)
   in
   maybe_write_checkpoint "synth";
-  (match config.opt_design, config.blackbox with
-   | Some true, (None | Top | Instantiations) | None, None ->
-     Out_channel.fprintf tcl_file "opt_design\n"
-   | Some false, (None | Top | Instantiations) | None, (Top | Instantiations) -> ());
+  (match config.opt_design, config.full_design_hierarchy with
+   | Some true, (true | false) | None, true -> Out_channel.fprintf tcl_file "opt_design\n"
+   | Some false, (true | false) | None, false -> ());
   Out_channel.fprintf tcl_file "}\n";
   (* write reports *)
   Out_channel.fprintf tcl_file "proc write_reports { stage root } {\n";
@@ -249,6 +256,7 @@ let create
   ~clocks
   ~part_name
   ~output_path
+  ~preserve_hierarchy
   circuit
   =
   mkdir_if_needed output_path;
@@ -269,12 +277,15 @@ let create
   (* Write xdc constraints file *)
   write_xdc ~xdc_file ~clocks;
   (* Write verilog RTL *)
-  Rtl.output
-    ?database
-    ~blackbox:config.blackbox
-    ~output_mode:(To_file (File_path_and_name.full_path_name verilog_file))
-    Verilog
-    circuit;
+  let rtl = Rtl.create ?database Verilog [ circuit ] in
+  Out_channel.write_all
+    (File_path_and_name.full_path_name verilog_file)
+    ~data:
+      (rtl
+       |> (if config.full_design_hierarchy
+           then Rtl.full_hierarchy
+           else Rtl.top_levels_and_blackboxes)
+       |> Rope.to_string);
   (* Write the TCL script *)
   write_run_script
     ~config
@@ -288,7 +299,8 @@ let create
     ~report_file
     ~place
     ~route
-    ~checkpoint;
+    ~checkpoint
+    ~preserve_hierarchy;
   (* Set report_file to the latest stage. *)
   let report_file =
     match place, route with
