@@ -3,8 +3,7 @@
 
     We also allow specification of the input BUFG driving the clock pin. This is optional,
     but allows the synthesizer to approximate skew across the device. It is specified at a
-    bufg location constraint ie [BUFGCTRL_X0Y2].
-*)
+    bufg location constraint ie [BUFGCTRL_X0Y2]. *)
 
 open! Import
 

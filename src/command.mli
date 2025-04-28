@@ -7,7 +7,7 @@ module Command_flags : sig
     { output_path : string
     ; part_name : string
     ; reports : bool
-    ; blackbox : Rtl.Blackbox.t
+    ; full_design_hierarchy : bool
     ; clocks : Clock.t list
     ; run : bool
     ; place : bool
@@ -22,6 +22,8 @@ module Command_flags : sig
     ; path_to_vivado : string option
     ; max_concurrent_jobs : int option
     ; additional_output_log_files : string list
+    ; preserve_hierarchy : bool
+    (** If [true], use [-flatten_hierarchy none] in [synth_design] *)
     }
 
   val default_flags : t

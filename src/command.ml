@@ -11,7 +11,7 @@ module Command_flags = struct
     { output_path : string
     ; part_name : string
     ; reports : bool
-    ; blackbox : Rtl.Blackbox.t
+    ; full_design_hierarchy : bool
     ; clocks : Clock.t list
     ; run : bool
     ; place : bool
@@ -26,13 +26,14 @@ module Command_flags = struct
     ; path_to_vivado : string option
     ; max_concurrent_jobs : int option
     ; additional_output_log_files : string list
+    ; preserve_hierarchy : bool
     }
 
   let default_flags =
     { output_path = ""
     ; part_name = ""
     ; reports = false
-    ; blackbox = Rtl.Blackbox.Instantiations
+    ; full_design_hierarchy = false
     ; clocks = []
     ; run = false
     ; place = false
@@ -47,16 +48,8 @@ module Command_flags = struct
     ; path_to_vivado = None
     ; max_concurrent_jobs = None
     ; additional_output_log_files = []
+    ; preserve_hierarchy = false
     }
-  ;;
-
-  (* How to generate each circuit. In none mode, implementations are provided for each
-     child (more accurate), otherwise a blackbox is used for children (faster). *)
-  let blackbox_arg =
-    Command.Arg_type.create (function
-      | "none" -> Rtl.Blackbox.None
-      | "inst" -> Instantiations
-      | _ -> raise_s [%message "Invalid blackbox mode"])
   ;;
 
   (* Specify clock parameters. We require a name, frequency and optional clock source
@@ -84,12 +77,13 @@ module Command_flags = struct
   (* Clocks. May be specified multiple times. *)
   let clocks = flag "-clock" (listed clock_arg) ~doc:"<NAME:FREQ[:LOC]> specific clock(s)"
 
-  (* blackbox mode *)
-  let blackbox =
+  (* If true the top level circuit and all submodules are included. Otherwise submodules
+     are created as blackboxes. *)
+  let full_design_hierarchy =
     flag
-      "-blackbox"
-      (optional_with_default default_flags.blackbox blackbox_arg)
-      ~doc:"<BBOX> blackbox mode"
+      "-full-design-heirarchy"
+      (optional_with_default default_flags.full_design_hierarchy bool)
+      ~doc:" Instantiate submodules or leave as blackboxes."
   ;;
 
   (* Run placement.  *)
@@ -122,7 +116,8 @@ module Command_flags = struct
   (* Execute vivado *)
   let run = flag "-run" no_arg ~doc:" Run vivado"
 
-  (* Run the [opt_design] pass, or not.  If unspecified it is run dependant on the blackbox argument. *)
+  (* Run the [opt_design] pass, or not. If unspecified it is run depending on if the full
+     design hierarchy is included. *)
   let opt_design = flag "-opt" (optional bool) ~doc:"<bool> run opt_design pass"
 
   (* Flatten design during elaboration. *)
@@ -166,6 +161,10 @@ module Command_flags = struct
       ~doc:" Additional paths to specify output log files on top of stdout."
   ;;
 
+  let preserve_hierarchy =
+    flag "-dont-flatten-hierarchy" no_arg ~doc:"Direct vivado to preserve hierarchy"
+  ;;
+
   let flags =
     let open Command.Let_syntax in
     let%map_open () = return ()
@@ -173,7 +172,7 @@ module Command_flags = struct
     and part_name
     and reports
     and clocks
-    and blackbox
+    and full_design_hierarchy
     and run
     and place
     and route
@@ -186,11 +185,12 @@ module Command_flags = struct
     and verbose
     and path_to_vivado
     and max_concurrent_jobs
-    and additional_output_log_files in
+    and additional_output_log_files
+    and preserve_hierarchy in
     { output_path
     ; part_name
     ; reports
-    ; blackbox
+    ; full_design_hierarchy
     ; clocks
     ; run
     ; place
@@ -205,6 +205,7 @@ module Command_flags = struct
     ; path_to_vivado
     ; max_concurrent_jobs
     ; additional_output_log_files
+    ; preserve_hierarchy
     }
   ;;
 end
@@ -223,7 +224,7 @@ let hierarchical_projects
   ~output_path
   ~part_name
   ~reports
-  ~blackbox
+  ~full_design_hierarchy
   ~opt_design
   ~clocks
   ~disable_hierarchy_in_report
@@ -231,6 +232,7 @@ let hierarchical_projects
   ~place
   ~route
   ~checkpoint
+  ~preserve_hierarchy
   circuits
   =
   let create_project circuit =
@@ -242,7 +244,7 @@ let hierarchical_projects
         List.mem input_names (Clock.name clock) ~equal:String.equal)
     in
     let top_name = Circuit.name circuit in
-    let%map () = Unix.mkdir (output_path ^/ top_name) in
+    let%map () = Unix.mkdir ~p:() (output_path ^/ top_name) in
     Project.create
       ~database
       ~clocks
@@ -250,7 +252,7 @@ let hierarchical_projects
         { Project.Config.vivado_utilization_report = reports
         ; vivado_timing_report = reports
         ; primitive_groups
-        ; blackbox
+        ; full_design_hierarchy
         ; opt_design
         ; report_hierarchy = not disable_hierarchy_in_report
         ; retiming = not disable_retiming
@@ -260,6 +262,7 @@ let hierarchical_projects
       ~place
       ~route
       ~checkpoint
+      ~preserve_hierarchy
       circuit
   in
   printf "Creating xilinx report projects in %s\n" output_path;
@@ -321,7 +324,7 @@ let run_circuit
   let { Command_flags.output_path
       ; part_name
       ; reports
-      ; blackbox
+      ; full_design_hierarchy
       ; clocks
       ; run
       ; place
@@ -336,6 +339,7 @@ let run_circuit
       ; path_to_vivado
       ; max_concurrent_jobs
       ; additional_output_log_files
+      ; preserve_hierarchy
       }
     =
     flags
@@ -355,7 +359,7 @@ let run_circuit
         ~output_path
         ~part_name
         ~reports
-        ~blackbox
+        ~full_design_hierarchy
         ~opt_design
         ~clocks
         ~disable_hierarchy_in_report
@@ -363,6 +367,7 @@ let run_circuit
         ~place
         ~route
         ~checkpoint
+        ~preserve_hierarchy
         circuits
     in
     if run
@@ -386,7 +391,6 @@ let command_circuit ?primitive_groups ?sort_by_name circuit =
     [%map_open.Command
       let flags = Command_flags.flags in
       fun () -> run_circuit ?primitive_groups ?sort_by_name ~flags circuit]
-    ~behave_nicely_in_pipeline:false
 ;;
 
 module With_interface (I : Interface.S) (O : Interface.S) = struct
@@ -397,7 +401,7 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
     let { Command_flags.output_path
         ; part_name
         ; reports
-        ; blackbox
+        ; full_design_hierarchy
         ; clocks
         ; run
         ; place
@@ -412,6 +416,7 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
         ; path_to_vivado
         ; max_concurrent_jobs
         ; additional_output_log_files
+        ; preserve_hierarchy
         }
       =
       flags
@@ -429,7 +434,7 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
         ~output_path
         ~part_name
         ~reports
-        ~blackbox
+        ~full_design_hierarchy
         ~opt_design
         ~clocks
         ~disable_hierarchy_in_report
@@ -437,6 +442,7 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
         ~place
         ~route
         ~checkpoint
+        ~preserve_hierarchy
         circuits
     in
     if run
@@ -460,7 +466,6 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
        let%map_open () = return ()
        and flags = Command_flags.flags in
        fun () -> run ?sort_by_name ?primitive_groups ~name ~flags create)
-      ~behave_nicely_in_pipeline:false
   ;;
 
   let command_run ?primitive_groups ?sort_by_name ~name create =
