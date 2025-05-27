@@ -31,7 +31,7 @@ struct
 
   let create_list create_fns scope (i : _ I.t) =
     List.fold
-      ~init:(O.Of_signal.of_int 0)
+      ~init:(O.Of_signal.zero ())
       ~f:(fun o1 o2 -> O.map2 o1 o2 ~f:( |: ))
       (List.map create_fns ~f:(fun (name, create_fn) -> hier ~name create_fn scope i))
   ;;
@@ -70,7 +70,7 @@ module Make (I : Interface.S) (O : Interface.S) = struct
 
   let create_list create_fns scope (i : _ I_with_clock.t) =
     List.fold
-      ~init:(O.Of_signal.of_int 0)
+      ~init:(O.Of_signal.zero ())
       ~f:(fun o1 o2 -> O.map2 o1 o2 ~f:( |: ))
       (List.map create_fns ~f:(fun (name, create_fn) -> hier ~name create_fn scope i))
   ;;
