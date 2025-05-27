@@ -1,5 +1,5 @@
-Automatic generation of Xilinx synthesis reports
-================================================
+Synthesis reports
+=================
 
 # `Hardcaml_synthesis_estimates`
 
