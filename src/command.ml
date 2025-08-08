@@ -81,7 +81,7 @@ module Command_flags = struct
      are created as blackboxes. *)
   let full_design_hierarchy =
     flag
-      "-full-design-heirarchy"
+      "-full-design-hierarchy"
       (optional_with_default default_flags.full_design_hierarchy bool)
       ~doc:" Instantiate submodules or leave as blackboxes."
   ;;
@@ -165,7 +165,12 @@ module Command_flags = struct
     flag "-dont-flatten-hierarchy" no_arg ~doc:"Direct vivado to preserve hierarchy"
   ;;
 
-  let flags =
+  let flags
+    ?(clocks = clocks)
+    ?(part_name = part_name)
+    ?(full_design_hierarchy = full_design_hierarchy)
+    ()
+    =
     let open Command.Let_syntax in
     let%map_open () = return ()
     and output_path
@@ -389,7 +394,7 @@ let command_circuit ?primitive_groups ?sort_by_name circuit =
   Command.async
     ~summary:"Circuit Synthesis"
     [%map_open.Command
-      let flags = Command_flags.flags in
+      let flags = Command_flags.flags () in
       fun () -> run_circuit ?primitive_groups ?sort_by_name ~flags circuit]
 ;;
 
@@ -464,7 +469,7 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
       ~summary:("Synthesis reports for " ^ name)
       (let open Command.Let_syntax in
        let%map_open () = return ()
-       and flags = Command_flags.flags in
+       and flags = Command_flags.flags () in
        fun () -> run ?sort_by_name ?primitive_groups ~name ~flags create)
   ;;
 

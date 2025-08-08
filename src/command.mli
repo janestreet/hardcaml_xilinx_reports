@@ -27,7 +27,13 @@ module Command_flags : sig
     }
 
   val default_flags : t
-  val flags : t Core.Command.Param.t
+
+  val flags
+    :  ?clocks:Clock.t list Core.Command.Param.t
+    -> ?part_name:string Core.Command.Param.t
+    -> ?full_design_hierarchy:bool Core.Command.Param.t
+    -> unit
+    -> t Core.Command.Param.t
 end
 
 val command_circuit
