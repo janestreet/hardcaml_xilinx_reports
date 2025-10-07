@@ -103,22 +103,22 @@ let list_hierarchically ~top_level_name ~circuits ~f =
         let this =
           f
             ~level
-            ~instance_name:(Some instantiation.inst_instance)
-            ~module_name:instantiation.inst_name
+            ~instance_label:(Some instantiation.instance_label)
+            ~module_name:instantiation.circuit_name
         in
         ret := this :: !ret;
-        loop ~level instantiation.inst_name)
+        loop ~level instantiation.circuit_name)
   in
-  ret := [ f ~level:0 ~instance_name:None ~module_name:top_level_name ];
+  ret := [ f ~level:0 ~instance_label:None ~module_name:top_level_name ];
   loop ~level:0 top_level_name;
   List.rev !ret
 ;;
 
-let mk_name ~level ~module_name ~instance_name =
+let mk_name ~level ~module_name ~instance_label =
   let indent = String.init level ~f:(Fn.const ' ') in
-  match instance_name with
+  match instance_label with
   | None -> [%string "%{indent}%{module_name}"]
-  | Some instance_name -> [%string "%{indent}%{module_name} (inst = %{instance_name})"]
+  | Some instance_label -> [%string "%{indent}%{module_name} (inst = %{instance_label})"]
 ;;
 
 let print_utilization_table
@@ -148,8 +148,8 @@ let print_utilization_table
   | _ ->
     let num_fields = List.length header_row - 1 in
     let reports = Map.of_alist_exn (module String) reports in
-    let row_of_report ~level ~instance_name ~module_name =
-      let name = mk_name ~level ~module_name ~instance_name in
+    let row_of_report ~level ~instance_label ~module_name =
+      let name = mk_name ~level ~module_name ~instance_label in
       match (Map.find reports module_name : t option option) with
       | None | Some None -> name :: List.init num_fields ~f:(Fn.const "-")
       | Some (Some report) ->
@@ -184,7 +184,7 @@ let print_timing_table
   in
   let num_clocks = List.length all_clocks in
   let reports = Map.of_alist_exn (module String) reports in
-  let row_of_report ~level ~instance_name ~module_name =
+  let row_of_report ~level ~instance_label ~module_name =
     let find_clock aclock clocks =
       match
         List.find clocks ~f:(fun (clock : Clock.t) -> String.equal clock.name aclock)
@@ -192,7 +192,7 @@ let print_timing_table
       | None -> "-"
       | Some clock -> Float.to_string clock.setup ^ "/" ^ Float.to_string clock.hold
     in
-    let name = mk_name ~level ~module_name ~instance_name in
+    let name = mk_name ~level ~module_name ~instance_label in
     match Map.find reports module_name with
     | None | Some None -> name :: List.init num_clocks ~f:(Fn.const "-")
     | Some (Some report) ->

@@ -6,6 +6,15 @@
     synthesis flow. *)
 open Hardcaml
 
+(** Returns a circuit that instantiates the circuits, where the input and output ports are
+    registered, with the exception of the clock port. *)
+val wrap_circuit_with_registers
+  :  ?instantiation_attributes:Rtl_attribute.t list
+  -> clock_port_name:string
+  -> scope:Scope.t
+  -> Circuit.t
+  -> Circuit.t
+
 module Make_sequential
     (I : sig
        include Hardcaml.Interface.S
