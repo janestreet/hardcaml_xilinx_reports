@@ -86,7 +86,7 @@ module Command_flags = struct
       ~doc:" Instantiate submodules or leave as blackboxes."
   ;;
 
-  (* Run placement.  *)
+  (* Run placement. *)
   let place =
     flag
       "-place"
@@ -125,7 +125,7 @@ module Command_flags = struct
     flag "-flatten" no_arg ~doc:" flatten design hierarchy during elaboration"
   ;;
 
-  (* Perform synthesis on the top level module, and all children.  May take a while... *)
+  (* Perform synthesis on the top level module, and all children. May take a while... *)
   let hierarchy = flag "-hierarchy" no_arg ~doc:" synthesize full design hierarchy"
 
   let disable_hierarchy_in_report =

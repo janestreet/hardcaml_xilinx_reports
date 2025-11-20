@@ -19,8 +19,7 @@ module type Subgroup = sig
   val ignore_macro_primitives : t -> bool
 end
 
-(** {4 Primtive subgroups}
-    **)
+(** {4 Primtive subgroups} *)
 module Advanced : sig
   type t =
     | Mac
@@ -124,8 +123,7 @@ module Register : sig
   val ignore_macro_primitives : t -> bool
 end
 
-(** {4 Primitive groups}
-    **)
+(** {4 Primitive groups} *)
 type t =
   | Advanced of Advanced.t list
   | Arithmetic of Arithmetic.t list
