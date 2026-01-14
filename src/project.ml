@@ -168,7 +168,7 @@ let write_run_script
   (* Make sure we detect xpm's if they are used. *)
   Out_channel.fprintf tcl_file "set_property top %s [current_fileset]\n" top_name;
   Out_channel.fprintf tcl_file "auto_detect_xpm\n";
-  (* run synthesis with retiming*)
+  (* run synthesis with retiming *)
   if config.retiming
   then
     Out_channel.fprintf
