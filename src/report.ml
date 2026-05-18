@@ -98,7 +98,7 @@ let list_hierarchically ~top_level_name ~circuits ~f =
     match Map.find circuits circuit_name with
     | None -> ()
     | Some circuit ->
-      List.iter (Circuit.instantiations circuit) ~f:(fun instantiation ->
+      List.iter (Circuit.instantiations circuit) ~f:(fun { instantiation; _ } ->
         let level = level + 1 in
         let this =
           f
