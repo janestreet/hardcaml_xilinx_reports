@@ -86,8 +86,7 @@ end
 module Make (I : Interface.S) (O : Interface.S) = struct
   module I_with_clock = struct
     type 'a t =
-      { clock : 'a
-      ; clear : 'a
+      { clocking : 'a Clocking.t
       ; i : 'a I.t [@rtlprefix "i_"]
       }
     [@@deriving hardcaml ~rtlmangle:false]
@@ -99,7 +98,7 @@ module Make (I : Interface.S) (O : Interface.S) = struct
     ]
 
   let create create scope (i : _ I_with_clock.t) =
-    let spec = Reg_spec.create ~clock:i.clock ~clear:i.clear () in
+    let spec = Clocking.to_spec i.clocking in
     let inputs = I.map i.i ~f:(reg spec ~enable:vdd) in
     let outputs =
       match create with

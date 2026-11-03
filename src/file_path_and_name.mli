@@ -4,7 +4,7 @@ open! Import
 
 type t
 
-val create : path:string -> file_name:string -> extension:string -> t
+val create : ?extension:string -> path:string -> file_name:string -> unit -> t
 val full_path_name : t -> string
 val tcl_rooted_file_name : t -> string
 val prefix_file_name : t -> string -> t

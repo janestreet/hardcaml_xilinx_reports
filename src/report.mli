@@ -41,16 +41,28 @@ type t =
     v} *)
 val read : file_name:string -> t
 
-(** Prints the utilization table hierarchically. *)
 val print_utilization_table
+  :  file:Out_channel.t
+  -> top_level_name:string
+  -> (string * t option) list
+  -> unit
+
+(** Prints the utilization table hierarchically. *)
+val print_hierarchical_utilization_table
   :  file:Out_channel.t
   -> top_level_name:string
   -> circuits:Circuit.t list
   -> (string * t option) list
   -> unit
 
-(** Prints the timing table hierarchically. *)
 val print_timing_table
+  :  file:Out_channel.t
+  -> top_level_name:string
+  -> (string * t option) list
+  -> unit
+
+(** Prints the timing table hierarchically. *)
+val print_hierarchical_timing_table
   :  file:Out_channel.t
   -> top_level_name:string
   -> circuits:Circuit.t list

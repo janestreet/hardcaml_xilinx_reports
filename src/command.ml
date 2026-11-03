@@ -11,17 +11,15 @@ module Command_flags = struct
     { output_path : string
     ; part_name : string
     ; reports : bool
-    ; full_design_hierarchy : bool
     ; clocks : Clock.t list
     ; run : bool
     ; place : bool
     ; route : bool
     ; checkpoint : bool
     ; opt_design : bool option
-    ; flatten_design : bool
-    ; hierarchy : bool
     ; disable_hierarchy_in_report : bool
     ; disable_retiming : bool
+    ; additional_synth_args : string option
     ; verbose : bool
     ; path_to_vivado : string option
     ; max_concurrent_jobs : int option
@@ -33,17 +31,15 @@ module Command_flags = struct
     { output_path = ""
     ; part_name = ""
     ; reports = false
-    ; full_design_hierarchy = false
     ; clocks = []
     ; run = false
     ; place = false
     ; route = false
     ; checkpoint = false
     ; opt_design = None
-    ; flatten_design = false
-    ; hierarchy = false
     ; disable_hierarchy_in_report = false
     ; disable_retiming = false
+    ; additional_synth_args = None
     ; verbose = false
     ; path_to_vivado = None
     ; max_concurrent_jobs = None
@@ -76,15 +72,6 @@ module Command_flags = struct
 
   (* Clocks. May be specified multiple times. *)
   let clocks = flag "-clock" (listed clock_arg) ~doc:"<NAME:FREQ[:LOC]> specific clock(s)"
-
-  (* If true the top level circuit and all submodules are included. Otherwise submodules
-     are created as blackboxes. *)
-  let full_design_hierarchy =
-    flag
-      "-full-design-hierarchy"
-      (optional_with_default default_flags.full_design_hierarchy bool)
-      ~doc:" Instantiate submodules or leave as blackboxes."
-  ;;
 
   (* Run placement. *)
   let place =
@@ -119,14 +106,6 @@ module Command_flags = struct
   (* Run the [opt_design] pass, or not. If unspecified it is run depending on if the full
      design hierarchy is included. *)
   let opt_design = flag "-opt" (optional bool) ~doc:"<bool> run opt_design pass"
-
-  (* Flatten design during elaboration. *)
-  let flatten_design =
-    flag "-flatten" no_arg ~doc:" flatten design hierarchy during elaboration"
-  ;;
-
-  (* Perform synthesis on the top level module, and all children. May take a while... *)
-  let hierarchy = flag "-hierarchy" no_arg ~doc:" synthesize full design hierarchy"
 
   let disable_hierarchy_in_report =
     flag
@@ -165,26 +144,18 @@ module Command_flags = struct
     flag "-dont-flatten-hierarchy" no_arg ~doc:"Direct vivado to preserve hierarchy"
   ;;
 
-  let flags
-    ?(clocks = clocks)
-    ?(part_name = part_name)
-    ?(full_design_hierarchy = full_design_hierarchy)
-    ()
-    =
+  let flags ?(clocks = clocks) ?(part_name = part_name) () =
     let open Command.Let_syntax in
     let%map_open () = return ()
     and output_path
     and part_name
     and reports
     and clocks
-    and full_design_hierarchy
     and run
     and place
     and route
     and checkpoint
     and opt_design
-    and flatten_design
-    and hierarchy
     and disable_hierarchy_in_report
     and disable_retiming
     and verbose
@@ -195,23 +166,66 @@ module Command_flags = struct
     { output_path
     ; part_name
     ; reports
-    ; full_design_hierarchy
     ; clocks
     ; run
     ; place
     ; route
     ; checkpoint
     ; opt_design
-    ; flatten_design
-    ; hierarchy
     ; disable_hierarchy_in_report
     ; disable_retiming
+    ; additional_synth_args = None
     ; verbose
     ; path_to_vivado
     ; max_concurrent_jobs
     ; additional_output_log_files
     ; preserve_hierarchy
     }
+  ;;
+end
+
+module Hardcaml_command_flags = struct
+  open Command.Param
+
+  type t =
+    { common : Command_flags.t
+    ; full_design_hierarchy : bool
+    ; flatten_design : bool
+    ; hierarchy : bool
+    }
+
+  let default_flags =
+    { common = Command_flags.default_flags
+    ; full_design_hierarchy = false
+    ; flatten_design = false
+    ; hierarchy = false
+    }
+  ;;
+
+  (* If true the top level circuit and all submodules are included. Otherwise submodules
+     are created as blackboxes. *)
+  let full_design_hierarchy =
+    flag
+      "-full-design-hierarchy"
+      (optional_with_default default_flags.full_design_hierarchy bool)
+      ~doc:" Instantiate submodules or leave as blackboxes."
+  ;;
+
+  (* Flatten design during elaboration. *)
+  let flatten_design =
+    flag "-flatten" no_arg ~doc:" flatten design hierarchy during elaboration"
+  ;;
+
+  (* Perform synthesis on the top level module, and all children. May take a while... *)
+  let hierarchy = flag "-hierarchy" no_arg ~doc:" synthesize full design hierarchy"
+
+  let flags ?clocks ?part_name ?(full_design_hierarchy = full_design_hierarchy) () =
+    let open Command.Let_syntax in
+    let%map_open common = Command_flags.flags ?clocks ?part_name ()
+    and full_design_hierarchy
+    and flatten_design
+    and hierarchy in
+    { common; full_design_hierarchy; flatten_design; hierarchy }
   ;;
 end
 
@@ -224,6 +238,8 @@ let default_primitive_groups =
 ;;
 
 let hierarchical_projects
+  ~top_level_name
+  ~io_delays
   ~database
   ~primitive_groups
   ~output_path
@@ -234,6 +250,7 @@ let hierarchical_projects
   ~clocks
   ~disable_hierarchy_in_report
   ~disable_retiming
+  ~additional_synth_args
   ~place
   ~route
   ~checkpoint
@@ -242,25 +259,35 @@ let hierarchical_projects
   =
   let create_project circuit =
     let input_names =
-      Circuit.inputs circuit |> List.map ~f:Hardcaml.Signal.names |> List.concat
+      List.concat_map (Circuit.inputs circuit) ~f:Hardcaml.Signal.names
+      @ List.map (Circuit.phantom_inputs circuit) ~f:fst
     in
     let clocks =
       List.filter clocks ~f:(fun clock ->
         List.mem input_names (Clock.name clock) ~equal:String.equal)
     in
     let top_name = Circuit.name circuit in
+    let io_delays =
+      (* External timing describes the top-level boundary, not similarly named ports of
+         independently synthesized child circuits. *)
+      if String.equal top_name top_level_name then io_delays else String.Map.empty
+    in
     let%map () = Unix.mkdir ~p:() (output_path ^/ top_name) in
-    Project.create
+    Project.Hardcaml.create
+      ~io_delays
       ~database
       ~clocks
       ~config:
-        { Project.Config.vivado_utilization_report = reports
-        ; vivado_timing_report = reports
-        ; primitive_groups
+        { common =
+            { additional_synth_args
+            ; vivado_utilization_report = reports
+            ; vivado_timing_report = reports
+            ; primitive_groups
+            ; opt_design
+            ; report_hierarchy = not disable_hierarchy_in_report
+            ; retiming = not disable_retiming
+            }
         ; full_design_hierarchy
-        ; opt_design
-        ; report_hierarchy = not disable_hierarchy_in_report
-        ; retiming = not disable_retiming
         }
       ~output_path:(output_path ^/ top_name)
       ~part_name
@@ -277,14 +304,13 @@ let hierarchical_projects
     Deferred.return (name, project))
 ;;
 
-let hierarchical_run_and_print
+let run_and_print
   ?(sort_by_name = false)
   ?path_to_vivado
-  ~top_level_name
-  ~circuits
   ~max_concurrent_jobs
   ~verbose
   ~additional_output_log_files
+  ~additional_reports
   projects
   =
   let%map runs =
@@ -315,36 +341,127 @@ let hierarchical_run_and_print
         "Project for %s lives in %s\n"
         name
         (Project.output_path project));
-    Report.print_utilization_table ~top_level_name ~circuits ~file runs;
-    Report.print_timing_table ~top_level_name ~circuits ~file runs);
+    List.iter additional_reports ~f:(fun report_fn -> report_fn ~file runs));
   List.iter additional_output_log_files ~f:(fun oc -> Out_channel.close oc)
 ;;
 
-let run_circuit
+let run_verilog
   ?(primitive_groups = default_primitive_groups)
-  ?sort_by_name
-  ~(flags : Command_flags.t)
-  circuit
+  ~name
+  ~verilog_file
+  (flags : Command_flags.t)
   =
   let { Command_flags.output_path
       ; part_name
       ; reports
-      ; full_design_hierarchy
       ; clocks
       ; run
       ; place
       ; route
       ; checkpoint
       ; opt_design
-      ; flatten_design
-      ; hierarchy
       ; disable_hierarchy_in_report
       ; disable_retiming
+      ; additional_synth_args
       ; verbose
       ; path_to_vivado
       ; max_concurrent_jobs
       ; additional_output_log_files
       ; preserve_hierarchy
+      }
+    =
+    flags
+  in
+  let top_level_name = name in
+  let project =
+    Project.Verilog.create
+      ~config:
+        { vivado_utilization_report = reports
+        ; vivado_timing_report = reports
+        ; primitive_groups
+        ; opt_design
+        ; report_hierarchy = not disable_hierarchy_in_report
+        ; retiming = not disable_retiming
+        ; additional_synth_args
+        }
+      ~place
+      ~route
+      ~checkpoint
+      ~clocks
+      ~part_name
+      ~output_path
+      ~preserve_hierarchy
+      ~verilog_file
+      ~top_name:top_level_name
+      ()
+  in
+  if run
+  then
+    run_and_print
+      ?path_to_vivado
+      ~max_concurrent_jobs
+      ~verbose
+      ~additional_output_log_files
+      ~additional_reports:
+        [ Report.print_utilization_table ~top_level_name
+        ; Report.print_timing_table ~top_level_name
+        ]
+      [ top_level_name, project ]
+  else Deferred.return ()
+;;
+
+let hierarchical_run_and_print
+  ?sort_by_name
+  ?path_to_vivado
+  ~top_level_name
+  ~circuits
+  ~max_concurrent_jobs
+  ~verbose
+  ~additional_output_log_files
+  projects
+  =
+  run_and_print
+    ?sort_by_name
+    ?path_to_vivado
+    ~max_concurrent_jobs
+    ~verbose
+    ~additional_output_log_files
+    ~additional_reports:
+      [ Report.print_hierarchical_utilization_table ~top_level_name ~circuits
+      ; Report.print_hierarchical_timing_table ~top_level_name ~circuits
+      ]
+    projects
+;;
+
+let run_circuit
+  ?(io_delays = String.Map.empty)
+  ?(primitive_groups = default_primitive_groups)
+  ?sort_by_name
+  ~(flags : Hardcaml_command_flags.t)
+  circuit
+  =
+  let { Hardcaml_command_flags.common =
+          { output_path
+          ; part_name
+          ; reports
+          ; clocks
+          ; run
+          ; place
+          ; route
+          ; checkpoint
+          ; opt_design
+          ; disable_hierarchy_in_report
+          ; disable_retiming
+          ; additional_synth_args
+          ; verbose
+          ; path_to_vivado
+          ; max_concurrent_jobs
+          ; additional_output_log_files
+          ; preserve_hierarchy
+          }
+      ; full_design_hierarchy
+      ; flatten_design
+      ; hierarchy
       }
     =
     flags
@@ -359,6 +476,8 @@ let run_circuit
     in
     let%bind projects =
       hierarchical_projects
+        ~top_level_name:(Hardcaml.Circuit.name circuit)
+        ~io_delays
         ~database
         ~primitive_groups
         ~output_path
@@ -369,6 +488,7 @@ let run_circuit
         ~clocks
         ~disable_hierarchy_in_report
         ~disable_retiming
+        ~additional_synth_args
         ~place
         ~route
         ~checkpoint
@@ -390,41 +510,58 @@ let run_circuit
   else Deferred.unit
 ;;
 
-let command_circuit ?primitive_groups ?sort_by_name circuit =
+let command_circuit ?io_delays ?primitive_groups ?sort_by_name circuit =
   Command.async
     ~summary:"Circuit Synthesis"
     [%map_open.Command
-      let flags = Command_flags.flags () in
-      fun () -> run_circuit ?primitive_groups ?sort_by_name ~flags circuit]
+      let flags = Hardcaml_command_flags.flags () in
+      fun () -> run_circuit ?io_delays ?primitive_groups ?sort_by_name ~flags circuit]
 ;;
 
 module With_interface (I : Interface.S) (O : Interface.S) = struct
   module Circuit = Circuit.With_interface (I) (O)
 
-  let run ?(primitive_groups = default_primitive_groups) ?sort_by_name ~name ~flags create
+  let run
+    ?(input_delays = I.const None)
+    ?(output_delays = O.const None)
+    ?(primitive_groups = default_primitive_groups)
+    ?sort_by_name
+    ~name
+    ~flags
+    create
     =
-    let { Command_flags.output_path
-        ; part_name
-        ; reports
+    let { Hardcaml_command_flags.common =
+            { output_path
+            ; part_name
+            ; reports
+            ; clocks
+            ; run
+            ; place
+            ; route
+            ; checkpoint
+            ; opt_design
+            ; disable_hierarchy_in_report
+            ; disable_retiming
+            ; additional_synth_args
+            ; verbose
+            ; path_to_vivado
+            ; max_concurrent_jobs
+            ; additional_output_log_files
+            ; preserve_hierarchy
+            }
         ; full_design_hierarchy
-        ; clocks
-        ; run
-        ; place
-        ; route
-        ; checkpoint
-        ; opt_design
         ; flatten_design
         ; hierarchy
-        ; disable_hierarchy_in_report
-        ; disable_retiming
-        ; verbose
-        ; path_to_vivado
-        ; max_concurrent_jobs
-        ; additional_output_log_files
-        ; preserve_hierarchy
         }
       =
       flags
+    in
+    let io_delays =
+      I.to_list (I.zip I.port_names input_delays)
+      @ O.to_list (O.zip O.port_names output_delays)
+      |> List.filter_map ~f:(fun (name, delay) ->
+        Option.map delay ~f:(fun delay -> name, delay))
+      |> String.Map.of_alist_exn
     in
     let scope = Scope.create ~flatten_design () in
     let circuit = Circuit.create_exn ~name (create scope) in
@@ -434,6 +571,8 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
     in
     let%bind projects =
       hierarchical_projects
+        ~top_level_name:(Hardcaml.Circuit.name circuit)
+        ~io_delays
         ~database
         ~primitive_groups
         ~output_path
@@ -444,6 +583,7 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
         ~clocks
         ~disable_hierarchy_in_report
         ~disable_retiming
+        ~additional_synth_args
         ~place
         ~route
         ~checkpoint
@@ -464,18 +604,46 @@ module With_interface (I : Interface.S) (O : Interface.S) = struct
     else Deferred.unit
   ;;
 
-  let command_basic ?primitive_groups ?sort_by_name ~name create =
+  let command_basic
+    ?input_delays
+    ?output_delays
+    ?primitive_groups
+    ?sort_by_name
+    ~name
+    create
+    =
     Command.async
       ~summary:("Synthesis reports for " ^ name)
       (let open Command.Let_syntax in
        let%map_open () = return ()
-       and flags = Command_flags.flags () in
-       fun () -> run ?sort_by_name ?primitive_groups ~name ~flags create)
+       and flags = Hardcaml_command_flags.flags () in
+       fun () ->
+         run
+           ?input_delays
+           ?output_delays
+           ?sort_by_name
+           ?primitive_groups
+           ~name
+           ~flags
+           create)
   ;;
 
-  let command_run ?primitive_groups ?sort_by_name ~name create =
+  let command_run
+    ?input_delays
+    ?output_delays
+    ?primitive_groups
+    ?sort_by_name
+    ~name
+    create
+    =
     Command_unix.run
       ~version:"0.0"
-      (command_basic ?sort_by_name ?primitive_groups ~name create)
+      (command_basic
+         ?input_delays
+         ?output_delays
+         ?sort_by_name
+         ?primitive_groups
+         ~name
+         create)
   ;;
 end

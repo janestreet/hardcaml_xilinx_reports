@@ -121,12 +121,7 @@ let mk_name ~level ~module_name ~instance_label =
   | Some instance_label -> [%string "%{indent}%{module_name} (inst = %{instance_label})"]
 ;;
 
-let print_utilization_table
-  ~file
-  ~top_level_name
-  ~circuits
-  (reports : (string * t option) list)
-  =
+let print_utilization_table' ~file ~row_fn (reports : (string * t option) list) =
   let header = List.find reports ~f:(fun (_, report) -> Option.is_some report) in
   let header_row =
     match header with
@@ -160,16 +155,21 @@ let print_utilization_table
         in
         name :: List.concat row
     in
-    let rows = list_hierarchically ~top_level_name ~circuits ~f:row_of_report in
+    let rows = row_fn ~row_of_report in
     Ascii_table.simple_list_table ~oc:file header_row rows
 ;;
 
-let print_timing_table
-  ~file
-  ~top_level_name
-  ~circuits
-  (reports : (string * t option) list)
-  =
+let print_utilization_table ~file ~top_level_name reports =
+  print_utilization_table' ~file reports ~row_fn:(fun ~row_of_report ->
+    [ row_of_report ~level:0 ~instance_label:None ~module_name:top_level_name ])
+;;
+
+let print_hierarchical_utilization_table ~file ~top_level_name ~circuits reports =
+  print_utilization_table' ~file reports ~row_fn:(fun ~row_of_report ->
+    list_hierarchically ~top_level_name ~circuits ~f:row_of_report)
+;;
+
+let print_timing_table' ~file ~row_fn (reports : (string * t option) list) =
   (* All clocks found in the design. *)
   let all_clocks =
     List.fold
@@ -203,6 +203,16 @@ let print_timing_table
     (* Leading dash will make the column left-align. *)
     "-NAME" :: all_clocks
   in
-  let rows = list_hierarchically ~top_level_name ~circuits ~f:row_of_report in
+  let rows = row_fn ~row_of_report in
   Ascii_table.simple_list_table ~oc:file header_rows rows
+;;
+
+let print_timing_table ~file ~top_level_name reports =
+  print_timing_table' ~file reports ~row_fn:(fun ~row_of_report ->
+    [ row_of_report ~level:0 ~instance_label:None ~module_name:top_level_name ])
+;;
+
+let print_hierarchical_timing_table ~file ~top_level_name ~circuits reports =
+  print_timing_table' ~file reports ~row_fn:(fun ~row_of_report ->
+    list_hierarchically ~top_level_name ~circuits ~f:row_of_report)
 ;;
