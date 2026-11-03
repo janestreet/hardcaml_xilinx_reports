@@ -7,8 +7,7 @@ module Design = struct
 
   module I = struct
     type 'a t =
-      { clock : 'a
-      ; clear : 'a
+      { clocking : 'a Clocking.t
       ; a : 'a [@bits 8]
       ; b : 'a [@bits 8]
       }
@@ -20,7 +19,7 @@ module Design = struct
   end
 
   let _create (i : _ I.t) =
-    let spec = Reg_spec.create () ~clock:i.clock ~clear:i.clear in
+    let spec = Clocking.to_spec i.clocking in
     { O.o = reg spec ~enable:vdd (reg spec ~enable:vdd (i.a +: i.b)) }
   ;;
 end
@@ -34,7 +33,7 @@ module Hierarchical_design = struct
     module O = Design.O
 
     let create _scope (i : _ I.t) =
-      let spec = Reg_spec.create () ~clock:i.clock ~clear:i.clear in
+      let spec = Clocking.to_spec i.clocking in
       { O.o = reg spec ~enable:vdd (uresize (i.a *: i.b) ~width:8) }
     ;;
 
@@ -46,8 +45,7 @@ module Hierarchical_design = struct
 
   module I = struct
     type 'a t =
-      { clock : 'a
-      ; clear : 'a
+      { clocking : 'a Clocking.t
       ; a_real : 'a [@bits 8]
       ; a_imag : 'a [@bits 8]
       ; b_real : 'a [@bits 8]
@@ -65,26 +63,18 @@ module Hierarchical_design = struct
   end
 
   let create scope (i : _ I.t) =
-    let spec = Reg_spec.create () ~clock:i.clock ~clear:i.clear in
+    let spec = Clocking.to_spec i.clocking in
     let rr =
-      Mult.hier
-        scope
-        { clock = i.clock; clear = i.clear; Mult.I.a = i.a_real; b = i.b_real }
+      Mult.hier scope { Mult.I.clocking = i.clocking; Mult.I.a = i.a_real; b = i.b_real }
     in
     let ii =
-      Mult.hier
-        scope
-        { clock = i.clock; clear = i.clear; Mult.I.a = i.a_imag; b = i.b_imag }
+      Mult.hier scope { Mult.I.clocking = i.clocking; Mult.I.a = i.a_imag; b = i.b_imag }
     in
     let ri =
-      Mult.hier
-        scope
-        { clock = i.clock; clear = i.clear; Mult.I.a = i.a_real; b = i.b_imag }
+      Mult.hier scope { Mult.I.clocking = i.clocking; Mult.I.a = i.a_real; b = i.b_imag }
     in
     let ir =
-      Mult.hier
-        scope
-        { clock = i.clock; clear = i.clear; Mult.I.a = i.a_imag; b = i.b_real }
+      Mult.hier scope { Mult.I.clocking = i.clocking; Mult.I.a = i.a_imag; b = i.b_real }
     in
     { O.c_real = reg spec ~enable:vdd (rr.o -: ii.o)
     ; c_imag = reg spec ~enable:vdd (ri.o +: ir.o)

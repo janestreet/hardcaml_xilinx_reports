@@ -43,8 +43,7 @@ end
 module Make (I : Interface.S) (O : Interface.S) : sig
   module I_with_clock : sig
     type 'a t =
-      { clock : 'a
-      ; clear : 'a
+      { clocking : 'a Clocking.t
       ; i : 'a I.t
       }
     [@@deriving hardcaml]

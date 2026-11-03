@@ -1,6 +1,4 @@
-Synthesis reports
-=================
-
+# Synthesis reports
 # `Hardcaml_synthesis_estimates`
 
 Provides a library which can take a hierarchical hardcaml design and run Xilinx

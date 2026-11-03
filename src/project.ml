@@ -5,10 +5,10 @@ module Config = struct
     { vivado_utilization_report : bool
     ; vivado_timing_report : bool
     ; primitive_groups : Primitive_group.t list
-    ; full_design_hierarchy : bool
     ; opt_design : bool option
     ; report_hierarchy : bool
     ; retiming : bool
+    ; additional_synth_args : string option
     }
   [@@deriving sexp_of]
 
@@ -16,10 +16,10 @@ module Config = struct
     { vivado_utilization_report = false
     ; vivado_timing_report = false
     ; primitive_groups = [ Clb []; Register [] ]
-    ; full_design_hierarchy = false
     ; opt_design = None
     ; report_hierarchy = true
     ; retiming = true
+    ; additional_synth_args = None
     }
   ;;
 end
@@ -30,7 +30,31 @@ type t =
   ; output_path : string
   }
 
-let write_xdc ~xdc_file ~clocks =
+let tcl_quote s =
+  let escaped =
+    String.concat_map s ~f:(function
+      | ('\\' | '"' | '$' | '[' | ']') as c -> "\\" ^ String.of_char c
+      | '\n' -> "\\n"
+      | '\r' -> "\\r"
+      | c -> String.of_char c)
+  in
+  "\"" ^ escaped ^ "\""
+;;
+
+let write_xdc ~xdc_file ~clocks ~io_delays =
+  Map.iteri
+    io_delays
+    ~f:(fun ~key:port ~data:(_, ({ clock_name; max_delay_ns } : Io_delay.t)) ->
+      if not
+           (List.exists clocks ~f:(fun clock ->
+              String.equal (Clock.name clock) clock_name))
+      then
+        raise_s [%message "Unknown I/O delay clock" (port : string) (clock_name : string)];
+      if List.exists clocks ~f:(fun clock -> String.equal (Clock.name clock) port)
+      then raise_s [%message "Cannot set I/O delay on a clock port" (port : string)];
+      if not (Float.is_finite max_delay_ns)
+      then
+        raise_s [%message "Non-finite I/O delay" (port : string) (max_delay_ns : float)]);
   let xdc_file = Out_channel.create (File_path_and_name.full_path_name xdc_file) in
   Out_channel.fprintf xdc_file "# Clock constraints\n";
   List.iter clocks ~f:(fun clock ->
@@ -46,6 +70,22 @@ let write_xdc ~xdc_file ~clocks =
         "set_property HD.CLK_SRC %s [get_ports \"%s\"]\n"
         clk_src_bufg
         (Clock.name clock)));
+  Map.iteri
+    io_delays
+    ~f:(fun ~key:port ~data:(direction, ({ clock_name; max_delay_ns } : Io_delay.t)) ->
+      let direction =
+        match direction with
+        | `Input -> "input"
+        | `Output -> "output"
+      in
+      (* [get_ports] expands a bus name to all its bits. *)
+      Out_channel.fprintf
+        xdc_file
+        "set_%s_delay -clock [get_clocks %s] -max %s [get_ports %s]\n"
+        direction
+        (tcl_quote clock_name)
+        (Float.to_string max_delay_ns)
+        (tcl_quote port));
   Out_channel.close xdc_file
 ;;
 
@@ -147,7 +187,8 @@ let write_run_script
   =
   let report predicate extension =
     if predicate
-    then Some (File_path_and_name.create ~path:output_path ~file_name:top_name ~extension)
+    then
+      Some (File_path_and_name.create ~path:output_path ~file_name:top_name ~extension ())
     else None
   in
   let utilization_report = report config.vivado_utilization_report ".utilization" in
@@ -168,19 +209,17 @@ let write_run_script
   (* Make sure we detect xpm's if they are used. *)
   Out_channel.fprintf tcl_file "set_property top %s [current_fileset]\n" top_name;
   Out_channel.fprintf tcl_file "auto_detect_xpm\n";
-  (* run synthesis with retiming *)
-  if config.retiming
-  then
-    Out_channel.fprintf
-      tcl_file
-      "set_param synth.elaboration.rodinMoreOptions \"rt::set_parameter synRetiming true\"\n";
+  (* Match js_board's non-project synthesis flow. *)
+  let maybe_retiming = if config.retiming then "-global_retiming on" else "" in
   let maybe_preserve_hierarchy =
     if preserve_hierarchy then "-flatten_hierarchy none" else ""
   in
   Out_channel.fprintf
     tcl_file
-    "synth_design -top %s -mode out_of_context %s\n"
+    "synth_design %s -top %s -mode out_of_context %s %s\n"
+    (Option.value ~default:"" config.additional_synth_args)
     top_name
+    maybe_retiming
     maybe_preserve_hierarchy;
   let maybe_write_checkpoint stage =
     if checkpoint
@@ -189,9 +228,9 @@ let write_run_script
       Out_channel.fprintf tcl_file "write_checkpoint -force \"%s\"\n" file)
   in
   maybe_write_checkpoint "synth";
-  (match config.opt_design, config.full_design_hierarchy with
-   | Some true, (true | false) | None, true -> Out_channel.fprintf tcl_file "opt_design\n"
-   | Some false, (true | false) | None, false -> ());
+  (match config.opt_design with
+   | Some true -> Out_channel.fprintf tcl_file "opt_design\n"
+   | Some false | None -> ());
   Out_channel.fprintf tcl_file "}\n";
   (* write reports *)
   Out_channel.fprintf tcl_file "proc write_reports { stage root } {\n";
@@ -248,44 +287,31 @@ let mkdir_if_needed path =
 ;;
 
 let create
-  ?database
-  ?(config = Config.default)
   ?(place = false)
   ?(route = false)
   ?(checkpoint = false)
+  ~io_delays
   ~clocks
   ~part_name
   ~output_path
   ~preserve_hierarchy
-  circuit
+  ~verilog_file
+  ~top_name
+  config
   =
   mkdir_if_needed output_path;
-  let top_name = Circuit.name circuit in
   (* file names *)
-  let verilog_file =
-    File_path_and_name.create ~path:output_path ~file_name:top_name ~extension:".v"
-  in
   let xdc_file =
-    File_path_and_name.create ~path:output_path ~file_name:top_name ~extension:".xdc"
+    File_path_and_name.create ~path:output_path ~file_name:top_name ~extension:".xdc" ()
   in
   let tcl_file =
-    File_path_and_name.create ~path:output_path ~file_name:top_name ~extension:".tcl"
+    File_path_and_name.create ~path:output_path ~file_name:top_name ~extension:".tcl" ()
   in
   let report_file =
-    File_path_and_name.create ~path:output_path ~file_name:"report" ~extension:".txt"
+    File_path_and_name.create ~path:output_path ~file_name:"report" ~extension:".txt" ()
   in
   (* Write xdc constraints file *)
-  write_xdc ~xdc_file ~clocks;
-  (* Write verilog RTL *)
-  let rtl = Rtl.create ?database Verilog [ circuit ] in
-  Out_channel.write_all
-    (File_path_and_name.full_path_name verilog_file)
-    ~data:
-      (rtl
-       |> (if config.full_design_hierarchy
-           then Rtl.full_hierarchy
-           else Rtl.top_levels_and_blackboxes)
-       |> Rope.to_string);
+  write_xdc ~xdc_file ~clocks ~io_delays;
   (* Write the TCL script *)
   write_run_script
     ~config
@@ -310,6 +336,124 @@ let create
   in
   { tcl_file; report_file; output_path }
 ;;
+
+module Hardcaml = struct
+  module Config = struct
+    type t =
+      { common : Config.t
+      ; full_design_hierarchy : bool
+      }
+    [@@deriving sexp_of]
+
+    let default = { common = Config.default; full_design_hierarchy = false }
+  end
+
+  let create
+    ?database
+    ?(config = Config.default)
+    ?place
+    ?route
+    ?checkpoint
+    ?(io_delays = Map.empty (module String))
+    ~clocks
+    ~part_name
+    ~output_path
+    ~preserve_hierarchy
+    circuit
+    =
+    let port_directions =
+      let ports_with_direction direction ports =
+        List.concat_map ports ~f:(fun port ->
+          List.map (Signal.names port) ~f:(fun name -> name, direction))
+      in
+      Map.of_alist_exn
+        (module String)
+        (ports_with_direction `Input (Circuit.inputs circuit)
+         @ ports_with_direction `Output (Circuit.outputs circuit)
+         @ List.map (Circuit.phantom_inputs circuit) ~f:(fun (name, _) -> name, `Input))
+    in
+    let io_delays =
+      Map.mapi io_delays ~f:(fun ~key:port ~data:delay ->
+        match Map.find port_directions port with
+        | Some direction -> direction, delay
+        | None -> raise_s [%message "Unknown I/O delay port" (port : string)])
+    in
+    let opt_design =
+      Option.value config.common.opt_design ~default:config.full_design_hierarchy
+    in
+    let config =
+      { config with common = { config.common with opt_design = Some opt_design } }
+    in
+    mkdir_if_needed output_path;
+    let top_name = Circuit.name circuit in
+    let verilog_file =
+      File_path_and_name.create ~path:output_path ~file_name:top_name ~extension:".v" ()
+    in
+    let rtl = Rtl.create ?database Verilog [ circuit ] in
+    Out_channel.write_all
+      (File_path_and_name.full_path_name verilog_file)
+      ~data:
+        (rtl
+         |> (if config.full_design_hierarchy
+             then Rtl.full_hierarchy
+             else Rtl.top_levels_and_blackboxes)
+         |> Rope.to_string);
+    create
+      ?place
+      ?route
+      ?checkpoint
+      ~io_delays
+      ~clocks
+      ~part_name
+      ~output_path
+      ~preserve_hierarchy
+      ~verilog_file
+      ~top_name
+      config.common
+  ;;
+end
+
+module Verilog = struct
+  let create
+    ?(config = Config.default)
+    ?place
+    ?route
+    ?checkpoint
+    ~clocks
+    ~part_name
+    ~output_path
+    ~preserve_hierarchy
+    ~verilog_file:user_verilog_file
+    ~top_name
+    ()
+    =
+    (* The verilog file needs to be a top-level file in the output dir to work with the
+       generate scripts. *)
+    let verilog_file =
+      File_path_and_name.create
+        ~path:output_path
+        ~file_name:(Core.Filename.basename user_verilog_file)
+        ()
+    in
+    if not (String.equal (Core.Filename.dirname user_verilog_file) output_path)
+    then
+      Out_channel.write_all
+        (File_path_and_name.full_path_name verilog_file)
+        ~data:(In_channel.read_all user_verilog_file);
+    create
+      ?place
+      ?route
+      ?checkpoint
+      ~io_delays:(Map.empty (module String))
+      ~clocks
+      ~part_name
+      ~output_path
+      ~preserve_hierarchy
+      ~verilog_file
+      ~top_name
+      config
+  ;;
+end
 
 let run ?(verbose = false) ?(path_to_vivado = "vivado") t =
   let command =

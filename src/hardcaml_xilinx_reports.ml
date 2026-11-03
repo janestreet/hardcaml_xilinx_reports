@@ -2,6 +2,7 @@
 
 module Clock = Clock
 module Command = Command
+module Io_delay = Io_delay
 module Primitive_group = Primitive_group
 module Project = Project
 module Report = Report
